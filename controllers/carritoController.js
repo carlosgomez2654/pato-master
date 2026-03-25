@@ -46,26 +46,27 @@ exports.agregar = async (req, res) => {
 };
 
 // Finalizar compra
+// Finalizar compra
 exports.finalizar = async (req, res) => {
     const { metodo_pago, direccion } = req.body;
 
     try {
-        // Obtener carrito
+        // 1. Obtener los productos actuales del carrito
         const [carrito] = await db.query(`
             SELECT c.id_producto, c.cantidad, p.precio
             FROM carrito c
             JOIN producto p ON c.id_producto = p.id_producto
         `);
 
-        if (carrito.length === 0) return res.send("Carrito vacío");
+        if (carrito.length === 0) return res.send("El carrito está vacío");
 
-        // Calcular total
+        // 2. Calcular el total de la venta
         let total = 0;
         carrito.forEach(item => {
             total += item.cantidad * item.precio;
         });
 
-        // Insertar en compra
+        // 3. Insertar la cabecera de la compra
         const fecha = new Date();
         const [result] = await db.query(
             'INSERT INTO compra (id_proveedor, fecha_compra, total_compra, metodo_pago) VALUES (?, ?, ?, ?)',
@@ -73,7 +74,7 @@ exports.finalizar = async (req, res) => {
         );
         const id_compra = result.insertId;
 
-        // Insertar en compra_detalle
+        // 4. Insertar cada producto en el detalle de la compra
         for (const item of carrito) {
             await db.query(
                 'INSERT INTO compra_detalle (id_compra, id_producto, cantidad, precio_unitario_compra) VALUES (?, ?, ?, ?)',
@@ -81,12 +82,15 @@ exports.finalizar = async (req, res) => {
             );
         }
 
-        // Limpiar carrito
+        // 5. Vaciar el carrito para la próxima compra
         await db.query('DELETE FROM carrito');
 
-        res.send("Compra finalizada correctamente");
+        // 6. REDIRECCIÓN CLAVE: Enviar a una página de confirmación
+        // Cambiamos '/carrito/finalizar' por '/carrito/confirmacion'
+        res.redirect('/carrito/confirmacion'); 
+        
     } catch (err) {
-        console.error(err);
-        res.status(500).send("Error al finalizar compra");
+        console.error("Error en finalizar compra:", err);
+        res.status(500).send("Error al procesar la compra en el servidor");
     }
 };
